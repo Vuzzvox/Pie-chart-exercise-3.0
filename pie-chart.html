@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Interactive Pie Chart with Label Controls</title>
+  <script src="https://d3js.org/d3.v6.min.js"></script>
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      background-color: #f4f4f4;
+    }
+
+    .container {
+      display: flex;
+      align-items: flex-start;
+      gap: 20px;
+    }
+
+    #chart {
+      border: 2px solid #ccc;
+      border-radius: 10px;
+      background: white;
+    }
+
+    #controls {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding: 20px;
+      background-color: #fff;
+      border-radius: 10px;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+      min-width: 230px;
+    }
+
+    button {
+      padding: 20px 40px;
+      font-size: 32px;
+      cursor: pointer;
+      border: none;
+      border-radius: 5px;
+      transition: filter 0.3s;
+      color: white;
+    }
+
+    button:hover {
+      filter: brightness(90%);
+    }
+
+    text.value-label {
+      font-weight: bold;
+      pointer-events: none;
+      text-anchor: middle;
+    }
+
+    text.title {
+      font-size: 18px;
+      font-weight: bold;
+      text-anchor: middle;
+    }
+
+    text.total {
+      font-size: 16px;
+      text-anchor: middle;
+    }
+
+    .control-title {
+      font-weight: bold;
+      margin-top: 15px;
+    }
+
+    .row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <svg id="chart" width="500" height="500"></svg>
+    <div id="controls"></div>
+  </div>
+
+  <script>
+    // ---------------- DATA ----------------
+    const data = [
+      { key: '15', value: 0 },
+      { key: '20', value: 0 },
+      { key: '25', value: 0 }
+    ];
+
+    let fontSize = 28;
+    let showLabels = true;
+    let labelColor = '#ffffff';
+
+    // ---------------- CHART SETUP ----------------
+    const width = 500, height = 500;
+    const radius = Math.min(width, height) / 2 - 20;
+
+    const svg = d3.select('#chart')
+      .append('g')
+      .attr('transform', `translate(${width / 2},${height / 2})`);
+
+    const color = d3.scaleOrdinal()
+      .domain(data.map(d => d.key))
+      .range(d3.schemeCategory10);
+
+    const pie = d3.pie()
+      .value(d => d.value)
+      .sort(null);
+
+    const arc = d3.arc()
+      .innerRadius(0)
+      .outerRadius(radius);
+
+    // ---------------- TITLES ----------------
+    svg.append('text')
+      .attr('class', 'title')
+      .attr('y', -radius - 30)
+      .text('Counts of Exercise');
+
+    const totalText = svg.append('text')
+      .attr('class', 'total')
+      .attr('y', radius + 40)
+      .text('Total: 0');
+
+    // ---------------- SLICES ----------------
+    svg.selectAll('path')
+      .data(pie(data))
+      .enter()
+      .append('path')
+      .attr('fill', d => color(d.data.key))
+      .attr('d', arc)
+      .on('click', (event, d) => {
+        d.data.value++;
+        update();
+      })
+      .each(function (d) { this._current = d; });
+
+    // ---------------- LABELS ----------------
+    svg.selectAll('text.value-label')
+      .data(pie(data))
+      .enter()
+      .append('text')
+      .attr('class', 'value-label')
+      .attr('transform', d => `translate(${arc.centroid(d)})`)
+      .style('font-size', `${fontSize}px`)
+      .style('fill', labelColor)
+      .text('');
+
+    // ---------------- CONTROLS ----------------
+    const controls = d3.select('#controls');
+
+    // Option buttons
+    controls.selectAll('button.option')
+      .data(data)
+      .enter()
+      .append('button')
+      .attr('class', 'option')
+      .text(d => d.key)
+      .style('background-color', d => color(d.key))
+      .on('click', (event, d) => {
+        d.value++;
+        update();
+      });
+
+    // Reset
+    controls.append('button')
+      .text('Reset')
+      .style('background-color', '#f44336')
+      .on('click', () => {
+        data.forEach(d => d.value = 0);
+        update();
+      });
+
+    // Font size slider
+    controls.append('div').attr('class', 'control-title').text('Font Size');
+
+    const fontValue = controls.append('div').text(`${fontSize}px`);
+
+    controls.append('input')
+      .attr('type', 'range')
+      .attr('min', 10)
+      .attr('max', 60)
+      .attr('value', fontSize)
+      .on('input', function () {
+        fontSize = +this.value;
+        fontValue.text(`${fontSize}px`);
+        update();
+      });
+
+    // Toggle labels
+    controls.append('div').attr('class', 'control-title').text('Labels');
+
+    const toggleRow = controls.append('div').attr('class', 'row');
+
+    toggleRow.append('input')
+      .attr('type', 'checkbox')
+      .property('checked', showLabels)
+      .on('change', function () {
+        showLabels = this.checked;
+        update();
+      });
+
+    toggleRow.append('span').text('Show values');
+
+    // Label color picker
+    controls.append('div').attr('class', 'control-title').text('Label Color');
+
+    controls.append('input')
+      .attr('type', 'color')
+      .attr('value', labelColor)
+      .on('input', function () {
+        labelColor = this.value;
+        update();
+      });
+
+    // ---------------- UPDATE FUNCTION ----------------
+    function update() {
+      const pieData = pie(data);
+
+      // Update slices
+      svg.selectAll('path')
+        .data(pieData)
+        .transition()
+        .duration(500)
+        .attrTween('d', function (d) {
+          const i = d3.interpolate(this._current, d);
+          this._current = i(0);
+          return t => arc(i(t));
+        });
+
+      // Update labels
+      const texts = svg.selectAll('text.value-label')
+        .data(pieData);
+
+      texts.enter()
+        .append('text')
+        .attr('class', 'value-label')
+        .merge(texts)
+        .transition()
+        .duration(300)
+        .attr('transform', d => `translate(${arc.centroid(d)})`)
+        .style('font-size', `${fontSize}px`)
+        .style('fill', labelColor)
+        .text(d =>
+          showLabels && d.data.value > 0 ? d.data.value : ''
+        );
+
+      texts.exit().remove();
+
+      // Update total
+      totalText.text(`Total: ${d3.sum(data, d => d.value)}`);
+    }
+  </script>
+</body>
+</html>
